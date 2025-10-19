@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+import assemblyai as aai
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import selectinload
+
+from app.core.config import get_settings
+from app.db.session import get_session_factory
+from app.models import Transcript, TranscriptionJob, TranscriptionStatus, User
+from app.schemas import TranscriptionJobCreate
+from app.services.storage import StorageService, get_storage_service
+from app.tasks.runner import TranscriptionRunner
+
+logger = logging.getLogger(__name__)
+
+
+class TranscriptionService:
+    def __init__(self, runner: TranscriptionRunner, storage: StorageService | None = None) -> None:
+        self.settings = get_settings()
+        aai.settings.api_key = self.settings.assemblyai_api_key
+        self.runner = runner
+        self.storage = storage or get_storage_service()
+        self._session_factory: async_sessionmaker[AsyncSession] = get_session_factory()
+        self.runner.set_startup_hook(self._recover_pending_jobs)
+
+    async def create_job(
+        self,
+        session: AsyncSession,
+        user: User,
+        payload: TranscriptionJobCreate,
+    ) -> TranscriptionJob:
+        job = TranscriptionJob(
+            user_id=user.id,
+            language=payload.language,
+            mode=payload.mode,
+            source_object_key=payload.object_key,
+            status=TranscriptionStatus.PENDING,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+        try:
+            self.runner.submit(lambda: self._process_job(job.id))
+        except RuntimeError:
+            logger.warning("Transcription runner not ready; job %s left pending", job.id)
+        return job
+
+    async def _recover_pending_jobs(self) -> None:
+        async with self._session_factory() as session:
+            stmt = select(TranscriptionJob.id).where(
+                TranscriptionJob.status.in_(
+                    [TranscriptionStatus.PENDING, TranscriptionStatus.PROCESSING]
+                )
+            )
+            result = await session.execute(stmt)
+            job_ids = [row[0] for row in result.all()]
+
+        if job_ids:
+            logger.info("Recovering %d pending transcription jobs", len(job_ids))
+        for job_id in job_ids:
+            try:
+                self.runner.submit(lambda job_id=job_id: self._process_job(job_id))
+            except RuntimeError:
+                logger.error("Runner not available to recover job %s", job_id)
+
+    async def _process_job(self, job_id: str) -> None:
+        async with self._session_factory() as session:
+            job = await session.get(
+                TranscriptionJob,
+                job_id,
+                options=[selectinload(TranscriptionJob.transcript)],
+            )
+            if not job:
+                logger.warning("Job %s not found", job_id)
+                return
+
+            if job.status == TranscriptionStatus.COMPLETED:
+                logger.info("Job %s already completed", job_id)
+                return
+
+            job.status = TranscriptionStatus.PROCESSING
+            job.error_message = None
+            job.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+
+        try:
+            transcript_text, diarized_json = await self._run_transcription(job_id)
+        except Exception as exc:
+            logger.exception("Transcription job %s failed", job_id)
+            async with self._session_factory() as session:
+                job = await session.get(TranscriptionJob, job_id)
+                if job:
+                    job.status = TranscriptionStatus.FAILED
+                    job.error_message = str(exc)
+                    job.updated_at = datetime.now(timezone.utc)
+                    await session.commit()
+            return
+
+        # Persist results
+        async with self._session_factory() as session:
+            job = await session.get(
+                TranscriptionJob,
+                job_id,
+                options=[selectinload(TranscriptionJob.transcript)],
+            )
+            if not job:
+                logger.warning("Job %s missing when saving results", job_id)
+                return
+
+        result_key = self.storage.generate_result_key(job.user_id, job.id)
+        await self.storage.upload_text(result_key, transcript_text)
+
+        async with self._session_factory() as session:
+            job = await session.get(
+                TranscriptionJob,
+                job_id,
+                options=[selectinload(TranscriptionJob.transcript)],
+            )
+            if not job:
+                logger.warning("Job %s missing during final save", job_id)
+                return
+
+            job.status = TranscriptionStatus.COMPLETED
+            job.result_object_key = result_key
+            job.updated_at = datetime.now(timezone.utc)
+
+            transcript = job.transcript
+            if transcript is None:
+                transcript = Transcript(
+                    job_id=job.id,
+                    plain_text=transcript_text,
+                    diarized_json=diarized_json,
+                )
+                session.add(transcript)
+            else:
+                transcript.plain_text = transcript_text
+                transcript.diarized_json = diarized_json
+                transcript.updated_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+    async def _run_transcription(self, job_id: str) -> tuple[str, str | None]:
+        async with self._session_factory() as session:
+            job = await session.get(TranscriptionJob, job_id)
+            if not job:
+                raise RuntimeError(f"Job {job_id} not found during execution")
+
+            source_key = job.source_object_key
+            language = job.language
+            speaker_labels = job.mode == "dialogue"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_path = Path(tmpdir) / "source"
+            await self.storage.download_to_path(source_key, local_path)
+
+            config = aai.TranscriptionConfig(
+                language_code=language,
+                speaker_labels=speaker_labels,
+            )
+            transcriber = aai.Transcriber()
+
+            transcript = await asyncio.to_thread(
+                transcriber.transcribe,
+                str(local_path),
+                config=config,
+            )
+
+        if transcript.status == "error":
+            raise RuntimeError(transcript.error or "Transcription failed")
+
+        text = transcript.text or ""
+        diarized_json = None
+        if transcript.utterances:
+            diarized_json = json.dumps(
+                [
+                    {
+                        "speaker": utterance.speaker,
+                        "start": utterance.start,
+                        "end": utterance.end,
+                        "text": utterance.text,
+                    }
+                    for utterance in transcript.utterances
+                ],
+                ensure_ascii=False,
+            )
+
+        return text, diarized_json
