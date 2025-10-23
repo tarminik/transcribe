@@ -62,6 +62,12 @@
 - Alembic migrations manage schema; `alembic upgrade head` after changes.
 - Tests via `pytest` + `httpx.AsyncClient` with dependency overrides and mocked AssemblyAI/storage.
 
+### Local-Only Mode (without S3/AssemblyAI)
+- Set `STORAGE_BACKEND=local` and `TRANSCRIPTION_BACKEND=stub` in `.env` (see `.env.example`).
+- Uploaded files are stored under `LOCAL_STORAGE_DIR` on disk; presign calls return FastAPI routes for uploads/downloads.
+- Use `PUT` on the provided `/files/upload/{object_key}` URL with an authenticated request to upload binaries directly.
+- The stub transcriber treats uploaded UTF-8 `.txt` files as transcripts; other formats return an explanatory placeholder string.
+
 ## Deployment Targets (Yandex Cloud)
 - FastAPI container on Yandex Cloud (Serverless Containers or Compute VM).
 - Yandex Managed PostgreSQL for database.
@@ -85,4 +91,3 @@
 - Usage tracking/quota enforcement for future billing.
 - Websocket notifications vs. polling.
 - Admin interface for monitoring jobs and reviewing errors.
-

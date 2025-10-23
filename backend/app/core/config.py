@@ -30,11 +30,18 @@ class Settings(BaseSettings):
 
     assemblyai_api_key: str = Field(default="assemblyai-api-key", alias="ASSEMBLYAI_API_KEY")
 
+    storage_backend: Literal["s3", "local"] = Field(default="s3", alias="STORAGE_BACKEND")
     s3_endpoint: HttpUrl | None = Field(default=None, alias="S3_ENDPOINT_URL")
     s3_access_key: str = Field(default="minioadmin", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="minioadmin", alias="S3_SECRET_KEY")
     s3_region: str | None = Field(default=None, alias="S3_REGION")
     s3_bucket_uploads: str = Field(default="transcribe-uploads", alias="S3_BUCKET_UPLOADS")
+    local_storage_dir: str = Field(default="storage_data", alias="LOCAL_STORAGE_DIR")
+
+    transcription_backend: Literal["assemblyai", "stub"] = Field(
+        default="assemblyai",
+        alias="TRANSCRIPTION_BACKEND",
+    )
 
     max_parallel_transcriptions: int = Field(default=3, alias="MAX_PARALLEL_TRANSCRIPTIONS")
 

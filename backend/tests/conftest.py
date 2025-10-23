@@ -22,6 +22,7 @@ from app.tasks.runner import TranscriptionRunner
 
 class DummyStorage(storage_service.StorageService):
     def __init__(self) -> None:  # type: ignore[super-init-not-called]
+        self.settings = get_settings()
         self.bucket = "dummy"
 
     def generate_upload_key(self, user_id: str, filename: str) -> str:  # type: ignore[override]
@@ -52,8 +53,11 @@ def configure_environment():
     os.environ["S3_ACCESS_KEY"] = "test"
     os.environ["S3_SECRET_KEY"] = "test"
     os.environ["S3_BUCKET_UPLOADS"] = "test-bucket"
+    os.environ["STORAGE_BACKEND"] = "local"
+    os.environ["TRANSCRIPTION_BACKEND"] = "stub"
     get_settings.cache_clear()
     db_session.reset_session_factory()
+    storage_service.reset_storage_service()
     storage_service._storage_service = DummyStorage()
 
 

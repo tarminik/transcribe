@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 class TranscriptionService:
     def __init__(self, runner: TranscriptionRunner, storage: StorageService | None = None) -> None:
         self.settings = get_settings()
-        aai.settings.api_key = self.settings.assemblyai_api_key
+        if self.settings.transcription_backend == "assemblyai":
+            aai.settings.api_key = self.settings.assemblyai_api_key
         self.runner = runner
         self.storage = storage or get_storage_service()
         self._session_factory: async_sessionmaker[AsyncSession] = get_session_factory()
@@ -162,6 +163,9 @@ class TranscriptionService:
             local_path = Path(tmpdir) / "source"
             await self.storage.download_to_path(source_key, local_path)
 
+            if self.settings.transcription_backend == "stub":
+                return await self._run_stub_transcription(local_path)
+
             config = aai.TranscriptionConfig(
                 language_code=language,
                 speaker_labels=speaker_labels,
@@ -194,3 +198,16 @@ class TranscriptionService:
             )
 
         return text, diarized_json
+
+    async def _run_stub_transcription(self, local_path: Path) -> tuple[str, str | None]:
+        def _read_text() -> str:
+            try:
+                return local_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                return (
+                    "[stub-transcription] Uploaded file is not UTF-8 text. "
+                    "Provide a .txt file or enable the AssemblyAI backend."
+                )
+
+        text = await asyncio.to_thread(_read_text)
+        return text, None
