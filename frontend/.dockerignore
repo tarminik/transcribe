@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.npm/
+npm-debug.log*
+Dockerfile
+docker-compose*
+.env.local
+.env.development
+.env.test
+.env.production

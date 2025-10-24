@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      UVICORN_WORKERS: 1
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-storage:/app/storage_data
+    depends_on: []
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: /api
+        VITE_BACKEND_ORIGIN: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-storage:

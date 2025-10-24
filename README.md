@@ -17,3 +17,15 @@
 3. Run the dev server: `npm run dev` (launches Vite on port 5173 with proxying to the backend).
 
 The UI offers a minimal flow: sign in with your API credentials, upload a file, pick language and mono/dialogue mode, and trigger transcription. When the backend finishes, the transcript preview appears and can be downloaded as `.txt`.
+
+## Container Images
+
+- Backend: `backend/Dockerfile` builds a slim Python 3.12 image that installs `requirements.txt` and runs `uvicorn app.main:app` on port 8000. A `.dockerignore` is provided to keep build contexts small.
+- Frontend: `frontend/Dockerfile` builds the Vite app and serves it from `nginx:alpine` (port 80). Configure `VITE_API_BASE` and `VITE_BACKEND_ORIGIN` via build args if you need to point at a different API.
+- Compose: `docker-compose.yml` launches both services locally (`backend` on 8000, `frontend` on 5173) and persists stub transcripts under the `backend-storage` volume.
+
+## Deployment Notes
+
+- Coolify: Deploy either service using the Dockerfile build pack or deploy both via the included `docker-compose.yml`. Point the base directory to `/` and set the compose path to `/docker-compose.yml`. Configure secrets (database URL, JWT secret, AssemblyAI key, S3/Yandex credentials) in the Coolify environment UI.
+- Yandex Cloud: Recommended architecture uses Managed Service for PostgreSQL, Object Storage (S3-compatible), and Container Registry. Provision a Compute Cloud VM (or Container Optimized Image) running Coolify or Docker and attach the necessary security groups. When using Managed PostgreSQL, download the CA cert and set `sslmode=verify-full` in `DATABASE_URL`.
+- CI/CD: Use GitHub Actions to build and push both images to a registry (e.g., GitHub Container Registry). Coolify can deploy automatically by tracking the default branch or listening to Git webhooks.
