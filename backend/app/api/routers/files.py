@@ -14,7 +14,6 @@ router = APIRouter(prefix="/files", tags=["files"])
 @router.post("/presign", response_model=PresignResponse)
 async def presign_upload(
     payload: PresignRequest,
-    request: Request,
     user: User = Depends(get_current_user),
 ) -> PresignResponse:
     storage = get_storage_service()
@@ -26,7 +25,7 @@ async def presign_upload(
 
     if upload_url.startswith("local://upload/"):
         local_key = unquote(upload_url.removeprefix("local://upload/"))
-        upload_url = str(request.url_for("upload_file", object_path=local_key))
+        upload_url = f"/files/upload/{local_key}"
     return PresignResponse(upload_url=upload_url, object_key=object_key)
 
 

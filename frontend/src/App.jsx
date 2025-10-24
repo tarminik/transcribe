@@ -5,6 +5,19 @@ const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN ?? 'http://localhost
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English (en)' },
+  { value: 'ru', label: 'Russian (ru)' },
+  { value: 'es', label: 'Spanish (es)' },
+  { value: 'de', label: 'German (de)' },
+  { value: 'fr', label: 'French (fr)' },
+  { value: 'it', label: 'Italian (it)' },
+  { value: 'pt', label: 'Portuguese (pt)' },
+  { value: 'hi', label: 'Hindi (hi)' },
+  { value: 'zh', label: 'Chinese Mandarin (zh)' },
+  { value: 'ja', label: 'Japanese (ja)' },
+];
+
 const joinPath = (base, path) => {
   if (!path.startsWith('/')) {
     return `${base}/${path}`;
@@ -79,11 +92,12 @@ function App() {
       };
       const response = await fetch(url, init);
       if (!response.ok) {
+        const cloned = response.clone();
         let body;
         try {
           body = await response.json();
         } catch (err) {
-          body = await response.text();
+          body = await cloned.text();
         }
         const error = new Error(body?.detail ?? response.statusText);
         error.status = response.status;
@@ -137,7 +151,10 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        if (response.status === 413) {
+          throw new Error('Upload failed: file is too large for the server limit.');
+        }
+        throw new Error(`Upload failed (${response.status})`);
       }
     },
     [token]
@@ -327,13 +344,14 @@ function App() {
               />
             </label>
             <label className="field">
-              <span>Language code</span>
-              <input
-                type="text"
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-                placeholder="en"
-              />
+              <span>Language</span>
+              <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="field">
               <span>Speaker mode</span>
