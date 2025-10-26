@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import ssl
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import assemblyai as aai
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
@@ -170,13 +172,38 @@ class TranscriptionService:
                 language_code=language,
                 speaker_labels=speaker_labels,
             )
-            transcriber = aai.Transcriber()
 
-            transcript = await asyncio.to_thread(
-                transcriber.transcribe,
-                str(local_path),
-                config=config,
-            )
+            max_attempts = max(1, self.settings.assemblyai_tls_retries)
+            transcript = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    transcript = await asyncio.to_thread(
+                        aai.Transcriber().transcribe,
+                        str(local_path),
+                        config=config,
+                    )
+                    break
+                except (httpx.ConnectError, ssl.SSLCertVerificationError) as exc:
+                    message = str(exc)
+                    is_hostname_issue = "certificate verify failed" in message.lower()
+                    if attempt >= max_attempts or not is_hostname_issue:
+                        raise
+                    wait_seconds = min(2 ** attempt, 10)
+                    logger.warning(
+                        "AssemblyAI TLS handshake failed for job %s (attempt %d/%d): %s. Retrying in %ss",
+                        job_id,
+                        attempt,
+                        max_attempts,
+                        message,
+                        wait_seconds,
+                    )
+                    await asyncio.sleep(wait_seconds)
+                except Exception:
+                    # Any non-TLS failure should surface immediately.
+                    raise
+
+            if transcript is None:
+                raise RuntimeError("AssemblyAI transcription did not return a result after retries")
 
         if transcript.status == "error":
             raise RuntimeError(transcript.error or "Transcription failed")

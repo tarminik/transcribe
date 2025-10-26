@@ -12,6 +12,7 @@
 - Apply migrations: `alembic upgrade head`.
 - Frontend dev server: `npm install && npm run dev` (serve on port 5173 with proxy to backend).
 - Docker compose stack: `docker compose up --build` brings up both services and mounts local storage.
+- After any code or config change that should reflect in containers, run `docker compose up --build -d` to rebuild images and restart the stack.
 
 ## Coding Style & Naming Conventions
 - Follow PEP 8 for Python; keep imports sorted (use `isort` manually if needed) and format with 4-space indentation.

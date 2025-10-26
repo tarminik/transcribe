@@ -5,6 +5,19 @@ const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN ?? 'http://localhost
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const parsePositiveInt = (value) => {
+  if (value == null) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+};
+
+const TRANSCRIPTION_POLL_INTERVAL_MS = 2000;
+const TRANSCRIPTION_MAX_WAIT_MS =
+  parsePositiveInt(import.meta.env.VITE_TRANSCRIPTION_MAX_WAIT_MS) ?? 10 * 60 * 1000;
+
 const LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English (en)' },
   { value: 'ru', label: 'Russian (ru)' },
@@ -68,7 +81,7 @@ function App() {
   const [isAuthLoading, setAuthLoading] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState(null);
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState('ru');
   const [mode, setMode] = useState('mono');
   const [isSubmitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -192,7 +205,10 @@ function App() {
   const monitorJob = useCallback(
     async (jobId) => {
       setStatusMessage('Processing transcription...');
-      for (let attempt = 0; attempt < 30; attempt += 1) {
+      const start = Date.now();
+      let hasWarnedAboutDelay = false;
+      // Continue polling until the job finishes; emit a friendlier message once it runs long.
+      for (;;) {
         const response = await apiFetch(`/jobs/${jobId}`, { method: 'GET' });
         const jobData = await response.json();
         setJobStatus(jobData);
@@ -206,9 +222,15 @@ function App() {
           setStatusMessage(jobData.error_message || 'Transcription failed.');
           return;
         }
-        await sleep(2000);
+        if (!hasWarnedAboutDelay && Date.now() - start > TRANSCRIPTION_MAX_WAIT_MS) {
+          setStatusMessage(
+            'Transcription is still processing. Keep this page open and we will refresh once it is ready.'
+          );
+          hasWarnedAboutDelay = true;
+        }
+
+        await sleep(TRANSCRIPTION_POLL_INTERVAL_MS);
       }
-      setStatusMessage('Timed out waiting for transcription.');
     },
     [apiFetch, downloadTranscript]
   );

@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     )
 
     max_parallel_transcriptions: int = Field(default=3, alias="MAX_PARALLEL_TRANSCRIPTIONS")
+    assemblyai_tls_retries: int = Field(default=3, alias="ASSEMBLYAI_TLS_RETRIES")
 
 
 @lru_cache
