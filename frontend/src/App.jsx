@@ -89,6 +89,8 @@ function App() {
   const [resultFilename, setResultFilename] = useState('');
   const [jobStatus, setJobStatus] = useState(null);
 
+  const hasAsideContent = Boolean(statusMessage || jobStatus || resultText);
+
   const isAuthenticated = useMemo(() => Boolean(token), [token]);
 
   const apiFetch = useCallback(
@@ -311,6 +313,10 @@ function App() {
     setStatusMessage('');
   };
 
+  const authenticatedCardClass = `card card--workspace${
+    hasAsideContent ? ' card--workspace--with-aside' : ''
+  }`;
+
   return (
     <div className="page">
       <header className="page__header">
@@ -323,7 +329,7 @@ function App() {
       </header>
 
       {!isAuthenticated ? (
-        <main className="card">
+        <main className="card card--auth">
           <h2>Sign in</h2>
           <p className="hint">Use the same credentials you created via the API.</p>
           <form className="form" onSubmit={handleLogin}>
@@ -354,7 +360,7 @@ function App() {
           </form>
         </main>
       ) : (
-        <main className="card">
+        <main className={authenticatedCardClass}>
           <h2>Transcribe audio or video</h2>
           <form className="form" onSubmit={handleTranscribe}>
             <label className="field">
@@ -404,27 +410,28 @@ function App() {
               {isSubmitting ? 'Processing…' : 'Transcribe'}
             </button>
           </form>
+          <aside className="workspace__aside">
+            {statusMessage && <div className="status">{statusMessage}</div>}
 
-          {statusMessage && <div className="status">{statusMessage}</div>}
-
-          {jobStatus && (
-            <div className="job-status">
-              <div>
-                <strong>Job status:</strong> {jobStatus.status}
+            {jobStatus && (
+              <div className="job-status">
+                <div>
+                  <strong>Job status:</strong> {jobStatus.status}
+                </div>
+                {jobStatus.error_message && <div>Error: {jobStatus.error_message}</div>}
               </div>
-              {jobStatus.error_message && <div>Error: {jobStatus.error_message}</div>}
-            </div>
-          )}
+            )}
 
-          {resultText && (
-            <div className="result">
-              <h3>Transcript</h3>
-              <pre className="result__preview">{resultText}</pre>
-              <button type="button" onClick={handleDownloadClick}>
-                Download TXT
-              </button>
-            </div>
-          )}
+            {resultText && (
+              <div className="result">
+                <h3>Transcript</h3>
+                <pre className="result__preview">{resultText}</pre>
+                <button type="button" onClick={handleDownloadClick}>
+                  Download TXT
+                </button>
+              </div>
+            )}
+          </aside>
         </main>
       )}
 
