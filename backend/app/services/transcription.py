@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import Transcript, TranscriptionJob, TranscriptionStatus, User
 from app.schemas import TranscriptionJobCreate
-from app.services.storage import StorageService, get_storage_service
+from app.services.storage import LocalStorageService, StorageService, get_storage_service
 from app.tasks.runner import TranscriptionRunner
 
 logger = logging.getLogger(__name__)
@@ -161,49 +161,65 @@ class TranscriptionService:
             language = job.language
             speaker_labels = job.mode == "dialogue"
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            local_path = Path(tmpdir) / "source"
-            await self.storage.download_to_path(source_key, local_path)
-
-            if self.settings.transcription_backend == "stub":
+        if self.settings.transcription_backend == "stub":
+            with tempfile.TemporaryDirectory() as tmpdir:
+                local_path = Path(tmpdir) / "source"
+                await self.storage.download_to_path(source_key, local_path)
                 return await self._run_stub_transcription(local_path)
 
-            config = aai.TranscriptionConfig(
-                language_code=language,
-                speaker_labels=speaker_labels,
-            )
+        config = aai.TranscriptionConfig(
+            language_code=language,
+            speaker_labels=speaker_labels,
+        )
 
-            max_attempts = max(1, self.settings.assemblyai_tls_retries)
-            transcript = None
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    transcript = await asyncio.to_thread(
-                        aai.Transcriber().transcribe,
+        async def _transcribe_once() -> aai.Transcript:
+            transcriber = aai.Transcriber()
+            if isinstance(self.storage, LocalStorageService):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    local_path = Path(tmpdir) / "source"
+                    await self.storage.download_to_path(source_key, local_path)
+                    return await asyncio.to_thread(
+                        transcriber.transcribe,
                         str(local_path),
                         config=config,
                     )
-                    break
-                except (httpx.ConnectError, ssl.SSLCertVerificationError) as exc:
-                    message = str(exc)
-                    is_hostname_issue = "certificate verify failed" in message.lower()
-                    if attempt >= max_attempts or not is_hostname_issue:
-                        raise
-                    wait_seconds = min(2 ** attempt, 10)
-                    logger.warning(
-                        "AssemblyAI TLS handshake failed for job %s (attempt %d/%d): %s. Retrying in %ss",
-                        job_id,
-                        attempt,
-                        max_attempts,
-                        message,
-                        wait_seconds,
-                    )
-                    await asyncio.sleep(wait_seconds)
-                except Exception:
-                    # Any non-TLS failure should surface immediately.
-                    raise
+            audio_url = self.storage.create_presigned_get(
+                source_key,
+                expires_in=self.settings.assemblyai_presigned_ttl,
+            )
 
-            if transcript is None:
-                raise RuntimeError("AssemblyAI transcription did not return a result after retries")
+            def _run() -> aai.Transcript:
+                return transcriber.transcribe(audio_url=audio_url, config=config)
+
+            return await asyncio.to_thread(_run)
+
+        max_attempts = max(1, self.settings.assemblyai_tls_retries)
+        transcript = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                transcript = await _transcribe_once()
+                break
+            except (httpx.ConnectError, ssl.SSLCertVerificationError) as exc:
+                message = str(exc)
+                is_hostname_issue = "certificate verify failed" in message.lower()
+                if attempt >= max_attempts or not is_hostname_issue:
+                    raise
+                wait_seconds = min(2 ** attempt, 10)
+                logger.warning(
+                    "AssemblyAI TLS handshake failed for job %s (attempt %d/%d): %s. Retrying in %ss",
+                    job_id,
+                    attempt,
+                    max_attempts,
+                    message,
+                    wait_seconds,
+                )
+                await asyncio.sleep(wait_seconds)
+            except Exception:
+                # Any non-TLS failure should surface immediately.
+                raise
+
+        if transcript is None:
+            raise RuntimeError("AssemblyAI transcription did not return a result after retries")
 
         if transcript.status == "error":
             raise RuntimeError(transcript.error or "Transcription failed")
