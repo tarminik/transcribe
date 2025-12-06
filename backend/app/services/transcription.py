@@ -239,6 +239,9 @@ class TranscriptionService:
                 ],
                 ensure_ascii=False,
             )
+            if speaker_labels:
+                # Build a speaker-labelled transcript for dialog mode so the saved TXT is readable.
+                text = "\n".join(f"Speaker {utterance.speaker}: {utterance.text}" for utterance in transcript.utterances)
 
         return text, diarized_json
 

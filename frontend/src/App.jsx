@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/$/, '');
 const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -88,6 +88,8 @@ function App() {
   const [resultText, setResultText] = useState('');
   const [resultFilename, setResultFilename] = useState('');
   const [jobStatus, setJobStatus] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   const hasAsideContent = Boolean(statusMessage || jobStatus || resultText);
 
@@ -313,6 +315,39 @@ function App() {
     setStatusMessage('');
   };
 
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleFileChange = (event) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleDropzoneKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
+
   const authenticatedCardClass = `card card--workspace${
     hasAsideContent ? ' card--workspace--with-aside' : ''
   }`;
@@ -355,6 +390,7 @@ function App() {
             </label>
             {authError && <div className="error">{authError}</div>}
             <button type="submit" className="primary" disabled={isAuthLoading}>
+              {isAuthLoading && <span className="loading-spinner"></span>}
               {isAuthLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
@@ -363,14 +399,45 @@ function App() {
         <main className={authenticatedCardClass}>
           <h2>Transcribe audio or video</h2>
           <form className="form" onSubmit={handleTranscribe}>
-            <label className="field">
+            <div className="field">
               <span>Choose file</span>
+              <div
+                className={`file-upload-area${isDragging ? ' drag-over' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={handleDropzoneKeyDown}
+                tabIndex={0}
+                role="button"
+                aria-label="Upload audio or video file"
+              >
+                <div className="file-upload-area__icon">📁</div>
+                <div className="file-upload-area__text">
+                  {selectedFile ? 'Click or drag to change file' : 'Click or drag file here'}
+                </div>
+                <div className="file-upload-area__hint">
+                  {selectedFile ? '' : 'Supports audio and video files'}
+                </div>
+                {selectedFile && (
+                  <div className="file-upload-area__selected">{selectedFile.name}</div>
+                )}
+              </div>
               <input
+                id="file-input"
+                ref={fileInputRef}
                 type="file"
                 required
-                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                onChange={handleFileChange}
+                style={{
+                  position: 'absolute',
+                  opacity: 0,
+                  width: 1,
+                  height: 1,
+                  pointerEvents: 'none',
+                }}
               />
-            </label>
+            </div>
             <label className="field">
               <span>Language</span>
               <select value={language} onChange={(event) => setLanguage(event.target.value)}>
@@ -407,16 +474,30 @@ function App() {
               </div>
             </div>
             <button type="submit" className="primary" disabled={isSubmitting}>
+              {isSubmitting && <span className="loading-spinner"></span>}
               {isSubmitting ? 'Processing…' : 'Transcribe'}
             </button>
           </form>
           <aside className="workspace__aside">
-            {statusMessage && <div className="status">{statusMessage}</div>}
+            {statusMessage && (
+              <div className="status">
+                {statusMessage}
+                {isSubmitting && <div className="progress-bar"><div className="progress-bar__fill"></div></div>}
+              </div>
+            )}
 
             {jobStatus && (
               <div className="job-status">
                 <div>
-                  <strong>Job status:</strong> {jobStatus.status}
+                  <strong>Status:</strong>
+                  <span className={`job-status-badge job-status-badge--${jobStatus.status}`}>
+                    {jobStatus.status === 'pending' && '⏱️'}
+                    {jobStatus.status === 'processing' && '⚙️'}
+                    {jobStatus.status === 'completed' && '✅'}
+                    {jobStatus.status === 'failed' && '❌'}
+                    {' '}
+                    {jobStatus.status}
+                  </span>
                 </div>
                 {jobStatus.error_message && <div>Error: {jobStatus.error_message}</div>}
               </div>
