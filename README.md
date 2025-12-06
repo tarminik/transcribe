@@ -1,5 +1,14 @@
 # transcribe
 
+## Current Plan Step
+
+This section tracks the currently active plan and step for white‑coding.
+
+- Active plan: _none_ (set to a file in `plans/` once you create one).
+- Current step: _none_ (update with a short description of the step being executed).
+
+Always keep this section in sync when you switch plans or move to the next step so that humans and agents can quickly see what to do next.
+
 ## Backend Quick Start (local only)
 
 1. `cd backend` and create a virtualenv (`python -m venv .venv` then `source .venv/bin/activate`).
