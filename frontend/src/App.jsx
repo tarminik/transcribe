@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/$/, '');
 const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -74,6 +74,7 @@ const toProxyUrl = (url) => {
 };
 
 function App() {
+  const TOKEN_STORAGE_KEY = 'transcribe_token';
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,6 +95,23 @@ function App() {
   const hasAsideContent = Boolean(statusMessage || jobStatus || resultText);
 
   const isAuthenticated = useMemo(() => Boolean(token), [token]);
+
+  // Restore token on first load.
+  useEffect(() => {
+    const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (savedToken) {
+      setToken(savedToken);
+    }
+  }, []);
+
+  // Persist or clear token when it changes.
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  }, [token]);
 
   const apiFetch = useCallback(
     async (path, options = {}) => {
