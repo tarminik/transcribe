@@ -18,14 +18,20 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import Transcript, TranscriptionJob, TranscriptionStatus, User
 from app.schemas import TranscriptionJobCreate
-from app.services.storage import LocalStorageService, StorageService, get_storage_service
+from app.services.storage import (
+    LocalStorageService,
+    StorageService,
+    get_storage_service,
+)
 from app.tasks.runner import TranscriptionRunner
 
 logger = logging.getLogger(__name__)
 
 
 class TranscriptionService:
-    def __init__(self, runner: TranscriptionRunner, storage: StorageService | None = None) -> None:
+    def __init__(
+        self, runner: TranscriptionRunner, storage: StorageService | None = None
+    ) -> None:
         self.settings = get_settings()
         if self.settings.transcription_backend == "assemblyai":
             aai.settings.api_key = self.settings.assemblyai_api_key
@@ -54,7 +60,9 @@ class TranscriptionService:
         try:
             self.runner.submit(lambda: self._process_job(job.id))
         except RuntimeError:
-            logger.warning("Transcription runner not ready; job %s left pending", job.id)
+            logger.warning(
+                "Transcription runner not ready; job %s left pending", job.id
+            )
         return job
 
     async def _recover_pending_jobs(self) -> None:
@@ -181,7 +189,7 @@ class TranscriptionService:
                     return await asyncio.to_thread(
                         transcriber.transcribe,
                         str(local_path),
-                        config=config,
+                        config,
                     )
             audio_url = self.storage.create_presigned_get(
                 source_key,
@@ -189,7 +197,7 @@ class TranscriptionService:
             )
 
             def _run() -> aai.Transcript:
-                return transcriber.transcribe(audio_url=audio_url, config=config)
+                return transcriber.transcribe(audio_url, config=config)
 
             return await asyncio.to_thread(_run)
 
@@ -204,7 +212,7 @@ class TranscriptionService:
                 is_hostname_issue = "certificate verify failed" in message.lower()
                 if attempt >= max_attempts or not is_hostname_issue:
                     raise
-                wait_seconds = min(2 ** attempt, 10)
+                wait_seconds = min(2**attempt, 10)
                 logger.warning(
                     "AssemblyAI TLS handshake failed for job %s (attempt %d/%d): %s. Retrying in %ss",
                     job_id,
@@ -219,7 +227,9 @@ class TranscriptionService:
                 raise
 
         if transcript is None:
-            raise RuntimeError("AssemblyAI transcription did not return a result after retries")
+            raise RuntimeError(
+                "AssemblyAI transcription did not return a result after retries"
+            )
 
         if transcript.status == "error":
             raise RuntimeError(transcript.error or "Transcription failed")
@@ -241,7 +251,10 @@ class TranscriptionService:
             )
             if speaker_labels:
                 # Build a speaker-labelled transcript for dialog mode so the saved TXT is readable.
-                text = "\n".join(f"Speaker {utterance.speaker}: {utterance.text}" for utterance in transcript.utterances)
+                text = "\n".join(
+                    f"Speaker {utterance.speaker}: {utterance.text}"
+                    for utterance in transcript.utterances
+                )
 
         return text, diarized_json
 
