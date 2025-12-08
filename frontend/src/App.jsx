@@ -19,6 +19,7 @@ const TRANSCRIPTION_MAX_WAIT_MS =
   parsePositiveInt(import.meta.env.VITE_TRANSCRIPTION_MAX_WAIT_MS) ?? 10 * 60 * 1000;
 
 const LANGUAGE_OPTIONS = [
+  { value: 'auto', label: 'Auto detect' },
   { value: 'en', label: 'English (en)' },
   { value: 'ru', label: 'Russian (ru)' },
   { value: 'es', label: 'Spanish (es)' },
@@ -82,7 +83,7 @@ function App() {
   const [isAuthLoading, setAuthLoading] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState(null);
-  const [language, setLanguage] = useState('ru');
+  const [language, setLanguage] = useState('auto');
   const [mode, setMode] = useState('mono');
   const [isSubmitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -488,6 +489,16 @@ function App() {
                     onChange={(event) => setMode(event.target.value)}
                   />
                   Dialogue
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="multi"
+                    checked={mode === 'multi'}
+                    onChange={(event) => setMode(event.target.value)}
+                  />
+                  Multiple
                 </label>
               </div>
             </div>

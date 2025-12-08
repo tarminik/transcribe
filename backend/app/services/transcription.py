@@ -167,7 +167,17 @@ class TranscriptionService:
 
             source_key = job.source_object_key
             language = job.language
-            speaker_labels = job.mode == "dialogue"
+            mode = job.mode
+
+            if mode == "mono":
+                speaker_labels = False  # no diarization in mono mode
+                speakers_expected = None
+            elif mode == "dialogue":
+                speaker_labels = True
+                speakers_expected = 2
+            else:  # "multi"
+                speaker_labels = True
+                speakers_expected = None
 
         if self.settings.transcription_backend == "stub":
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -175,10 +185,18 @@ class TranscriptionService:
                 await self.storage.download_to_path(source_key, local_path)
                 return await self._run_stub_transcription(local_path)
 
-        config = aai.TranscriptionConfig(
-            language_code=language,
-            speaker_labels=speaker_labels,
-        )
+        if language == "auto":
+            config = aai.TranscriptionConfig(
+                language_detection=True,
+                speaker_labels=speaker_labels,
+                speakers_expected=speakers_expected,
+            )
+        else:
+            config = aai.TranscriptionConfig(
+                language_code=language,
+                speaker_labels=speaker_labels,
+                speakers_expected=speakers_expected,
+            )
 
         async def _transcribe_once() -> aai.Transcript:
             transcriber = aai.Transcriber()
@@ -249,8 +267,8 @@ class TranscriptionService:
                 ],
                 ensure_ascii=False,
             )
-            if speaker_labels:
-                # Build a speaker-labelled transcript for dialog mode so the saved TXT is readable.
+            if speaker_labels and mode in ("dialogue", "multi"):
+                # Build a speaker-labelled transcript for dialog/multi so the saved TXT is readable.
                 text = "\n".join(
                     f"Speaker {utterance.speaker}: {utterance.text}"
                     for utterance in transcript.utterances

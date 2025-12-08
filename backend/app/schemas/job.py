@@ -9,7 +9,7 @@ from app.models.transcription_job import TranscriptionStatus
 class TranscriptionJobCreate(BaseModel):
     object_key: str = Field(..., min_length=1)
     language: str = Field(default="en", min_length=2, max_length=10)
-    mode: Literal["mono", "dialogue"] = "mono"
+    mode: Literal["mono", "dialogue", "multi"] = "mono"
 
 
 class TranscriptionJobRead(BaseModel):
