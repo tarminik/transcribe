@@ -52,7 +52,6 @@ def upgrade() -> None:
         sa.Column("mode", sa.String(length=16), nullable=False),
         sa.Column("source_object_key", sa.String(length=1024), nullable=False),
         sa.Column("result_object_key", sa.String(length=1024), nullable=True),
-        sa.Column("provider_job_id", sa.String(length=255), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),

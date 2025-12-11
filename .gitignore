@@ -4,7 +4,9 @@ __pycache__/
 
 # Python env / build
 backend/.venv/
+backend/venv/
 backend/storage_data/
+backend/test.db
 *.pyc
 
 # Frontend

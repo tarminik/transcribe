@@ -28,7 +28,7 @@
 
 ## Data Model (initial)
 - `users`: `id`, `email` (unique), `password_hash`, `created_at`.
-- `transcription_jobs`: `id`, `user_id`, `status` (`pending`, `processing`, `completed`, `failed`), `language`, `mode`, `source_object_key`, `result_object_key`, `provider_job_id`, `error_message`, timestamps.
+- `transcription_jobs`: `id`, `user_id`, `status` (`pending`, `processing`, `completed`, `failed`), `language`, `mode`, `source_object_key`, `result_object_key`, `error_message`, timestamps.
 - `transcripts`: `job_id`, `plain_text`, `diarized_json` (optional), timestamps.
 - Optional: `refresh_tokens` table if refresh-token flow is added.
 

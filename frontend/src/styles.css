@@ -154,13 +154,6 @@ textarea {
   cursor: pointer;
 }
 
-.file-upload-wrapper {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .file-upload-area {
   border: 2px dashed #cbd5e1;
   border-radius: var(--border-radius);

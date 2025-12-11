@@ -1,5 +1,3 @@
-from collections.abc import AsyncGenerator
-
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -40,9 +38,3 @@ def reset_session_factory() -> None:
     global _engine, _session_factory
     _engine = None
     _session_factory = None
-
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    session_factory = get_session_factory()
-    async with session_factory() as session:
-        yield session

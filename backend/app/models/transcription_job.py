@@ -33,7 +33,6 @@ class TranscriptionJob(Base):
     mode: Mapped[str] = mapped_column(String(16), nullable=False)  # mono | dialogue
     source_object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     result_object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    provider_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
