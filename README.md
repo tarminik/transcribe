@@ -25,7 +25,7 @@ Always keep this section in sync when you switch plans or move to the next step 
 2. Install deps: `npm install`.
 3. Run the dev server: `npm run dev` (launches Vite on port 5173 with proxying to the backend).
 
-The UI offers a minimal flow: sign in with your API credentials, upload a file, pick language and mono/dialogue mode, and trigger transcription. When the backend finishes, the transcript preview appears and can be downloaded as `.txt`.
+The UI offers a minimal flow: sign up or sign in with email/password, upload a file, pick language and mono/dialogue mode, and trigger transcription. When the backend finishes, the transcript preview appears and can be downloaded as `.txt`.
 
 ## Container Images
 

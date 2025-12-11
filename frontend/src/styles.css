@@ -102,6 +102,31 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
+.auth-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #f3f4f6;
+  padding: 6px;
+  border-radius: var(--border-radius);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.auth-toggle__btn {
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: var(--border-radius);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.auth-toggle__btn.is-active {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  color: #312e81;
+  box-shadow: var(--shadow-sm);
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -304,6 +329,18 @@ select:focus {
 .status::before {
   content: '⏳';
   font-size: 1.2rem;
+}
+
+.status.status--inline {
+  margin-top: 0;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #ecfdf3 0%, #d1fae5 100%);
+  border-left-color: var(--success-color);
+  color: #065f46;
+}
+
+.status.status--inline::before {
+  content: '✅';
 }
 
 @keyframes slideIn {

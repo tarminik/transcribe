@@ -80,7 +80,9 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
   const [isAuthLoading, setAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [language, setLanguage] = useState('auto');
@@ -144,14 +146,11 @@ function App() {
     [token]
   );
 
-  const handleLogin = async (event) => {
-    event.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-    try {
+  const performLogin = useCallback(
+    async (emailValue, passwordValue) => {
       const params = new URLSearchParams();
-      params.set('username', email.trim());
-      params.set('password', password);
+      params.set('username', emailValue.trim());
+      params.set('password', passwordValue);
       const response = await apiFetch('/auth/login', {
         method: 'POST',
         headers: {
@@ -161,8 +160,57 @@ function App() {
       });
       const data = await response.json();
       setToken(data.access_token);
+    },
+    [apiFetch]
+  );
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    setAuthLoading(true);
+    try {
+      await performLogin(email, password);
     } catch (error) {
       setAuthError(error.message || 'Login failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleRegister = async (event) => {
+    event.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    setAuthLoading(true);
+
+    if (password.length < 8) {
+      setAuthError('Password must be at least 8 characters.');
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiFetch('/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody?.detail || 'Registration failed');
+      }
+
+      await performLogin(email, password);
+      setAuthSuccess('Account created and you are now signed in.');
+    } catch (error) {
+      setAuthError(error.message || 'Registration failed');
     } finally {
       setAuthLoading(false);
     }
@@ -384,9 +432,39 @@ function App() {
 
       {!isAuthenticated ? (
         <main className="card card--auth">
-          <h2>Sign in</h2>
-          <p className="hint">Use the same credentials you created via the API.</p>
-          <form className="form" onSubmit={handleLogin}>
+          <div className="auth-toggle">
+            <button
+              type="button"
+              className={authMode === 'login' ? 'auth-toggle__btn is-active' : 'auth-toggle__btn'}
+              onClick={() => {
+                setAuthMode('login');
+                setAuthError('');
+                setAuthSuccess('');
+              }}
+              aria-pressed={authMode === 'login'}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className={authMode === 'register' ? 'auth-toggle__btn is-active' : 'auth-toggle__btn'}
+              onClick={() => {
+                setAuthMode('register');
+                setAuthError('');
+                setAuthSuccess('');
+              }}
+              aria-pressed={authMode === 'register'}
+            >
+              Create account
+            </button>
+          </div>
+          <h2>{authMode === 'login' ? 'Sign in' : 'Create account'}</h2>
+          <p className="hint">
+            {authMode === 'login'
+              ? 'Use your existing email and password to continue.'
+              : 'Create a new account with email and password (minimum 8 characters).'}
+          </p>
+          <form className="form" onSubmit={authMode === 'login' ? handleLogin : handleRegister}>
             <label className="field">
               <span>Email</span>
               <input
@@ -408,9 +486,16 @@ function App() {
               />
             </label>
             {authError && <div className="error">{authError}</div>}
+            {authSuccess && <div className="status status--inline">{authSuccess}</div>}
             <button type="submit" className="primary" disabled={isAuthLoading}>
               {isAuthLoading && <span className="loading-spinner"></span>}
-              {isAuthLoading ? 'Signing in…' : 'Sign in'}
+              {authMode === 'login'
+                ? isAuthLoading
+                  ? 'Signing in…'
+                  : 'Sign in'
+                : isAuthLoading
+                  ? 'Creating account…'
+                  : 'Create account'}
             </button>
           </form>
         </main>
