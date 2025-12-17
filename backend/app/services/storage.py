@@ -39,9 +39,17 @@ class StorageService:
         safe_name = _sanitize_filename(filename)
         return f"uploads/{user_id}/{uuid4()}_{safe_name}"
 
-    def generate_result_key(self, user_id: str, job_id: str, extension: str = ".txt") -> str:
+    def generate_result_key(
+        self,
+        user_id: str,
+        job_id: str,
+        original_filename: str,
+        extension: str = ".txt",
+    ) -> str:
         ext = extension if extension.startswith(".") else f".{extension}"
-        return f"results/{user_id}/{job_id}{ext}"
+        safe_name = _sanitize_filename(original_filename)
+        stem = Path(safe_name).stem or "transcript"
+        return f"results/{user_id}/{job_id}/{stem}{ext}"
 
     def create_presigned_put(
         self,

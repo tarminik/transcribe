@@ -28,9 +28,16 @@ class DummyStorage(storage_service.StorageService):
     def generate_upload_key(self, user_id: str, filename: str) -> str:  # type: ignore[override]
         return f"uploads/{user_id}/{filename}"
 
-    def generate_result_key(self, user_id: str, job_id: str, extension: str = ".txt") -> str:  # type: ignore[override]
+    def generate_result_key(  # type: ignore[override]
+        self,
+        user_id: str,
+        job_id: str,
+        original_filename: str,
+        extension: str = ".txt",
+    ) -> str:
         ext = extension if extension.startswith(".") else f".{extension}"
-        return f"results/{user_id}/{job_id}{ext}"
+        stem = Path(original_filename).stem or "transcript"
+        return f"results/{user_id}/{job_id}/{stem}{ext}"
 
     def create_presigned_put(self, key: str, content_type: str, expires_in: int = 900) -> str:  # type: ignore[override]
         return f"https://example.com/put/{key}"

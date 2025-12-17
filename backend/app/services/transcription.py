@@ -129,7 +129,10 @@ class TranscriptionService:
                 logger.warning("Job %s missing when saving results", job_id)
                 return
 
-        result_key = self.storage.generate_result_key(job.user_id, job.id)
+        original_name = self._extract_original_filename(source_key)
+        result_key = self.storage.generate_result_key(
+            job.user_id, job.id, original_name
+        )
         await self.storage.upload_text(result_key, transcript_text)
 
         async with self._session_factory() as session:
@@ -304,3 +307,12 @@ class TranscriptionService:
             logger.warning(
                 "Failed to delete source object %s after processing", key, exc_info=True
             )
+
+    def _extract_original_filename(self, source_key: str) -> str:
+        name = Path(source_key).name
+        # Upload keys are prefixed with a UUID and underscore; strip that when present.
+        if "_" in name:
+            prefix, remainder = name.split("_", 1)
+            if remainder and len(prefix) >= 8:  # heuristic to catch UUID-like prefix
+                name = remainder
+        return name
