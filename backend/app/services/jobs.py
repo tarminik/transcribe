@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Transcript, TranscriptionJob
+from app.models import TranscriptionJob
 
 
 async def list_jobs_for_user(session: AsyncSession, user_id: str) -> list[TranscriptionJob]:
