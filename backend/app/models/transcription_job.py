@@ -25,7 +25,12 @@ class TranscriptionJob(Base):
         nullable=False,
     )
     status: Mapped[TranscriptionStatus] = mapped_column(
-        SqlEnum(TranscriptionStatus, name="transcription_status", create_type=False),
+        SqlEnum(
+            TranscriptionStatus,
+            name="transcription_status",
+            create_type=False,
+            values_callable=lambda e: [x.value for x in e],
+        ),
         default=TranscriptionStatus.PENDING,
         nullable=False,
     )
