@@ -2,6 +2,8 @@
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
+from sqlalchemy.dialects import postgresql
 
 revision = "0001_initial"
 down_revision = None
@@ -10,14 +12,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    transcription_status = sa.Enum(
-        "pending",
-        "processing",
-        "completed",
-        "failed",
-        name="transcription_status",
-    )
-    transcription_status.create(op.get_bind(), checkfirst=True)
+    bind = op.get_bind()
+
+    # Check if enum type already exists (PostgreSQL specific)
+    if bind.dialect.name == "postgresql":
+        result = bind.execute(
+            text("SELECT 1 FROM pg_type WHERE typname = 'transcription_status'")
+        )
+        if not result.fetchone():
+            bind.execute(
+                text("CREATE TYPE transcription_status AS ENUM ('pending', 'processing', 'completed', 'failed')")
+            )
+        transcription_status = postgresql.ENUM(
+            "pending", "processing", "completed", "failed",
+            name="transcription_status",
+            create_type=False,
+        )
+    else:
+        # SQLite and others
+        transcription_status = sa.Enum(
+            "pending", "processing", "completed", "failed",
+            name="transcription_status",
+        )
 
     op.create_table(
         "user",
@@ -83,4 +99,9 @@ def downgrade() -> None:
     op.drop_table("transcriptionjob")
     op.drop_index(op.f("ix_user_email"), table_name="user")
     op.drop_table("user")
-    sa.Enum(name="transcription_status").drop(op.get_bind(), checkfirst=True)
+
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        bind.execute(text("DROP TYPE IF EXISTS transcription_status"))
+    else:
+        sa.Enum(name="transcription_status").drop(bind, checkfirst=True)
