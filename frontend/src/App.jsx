@@ -92,6 +92,9 @@ function App() {
   const [resultText, setResultText] = useState('');
   const [resultFilename, setResultFilename] = useState('');
   const [jobStatus, setJobStatus] = useState(null);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyError, setHistoryError] = useState('');
+  const [isHistoryLoading, setHistoryLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -115,6 +118,10 @@ function App() {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   }, [token]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   const apiFetch = useCallback(
     async (path, options = {}) => {
@@ -145,6 +152,26 @@ function App() {
     },
     [token]
   );
+
+  const fetchHistory = useCallback(async () => {
+    if (!token) {
+      setHistoryItems([]);
+      setHistoryError('');
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const response = await apiFetch('/history/', { method: 'GET' });
+      const data = await response.json();
+      setHistoryItems(data);
+    } catch (error) {
+      setHistoryError(error.message || 'Failed to load history.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [apiFetch, token]);
 
   const performLogin = useCallback(
     async (emailValue, passwordValue) => {
@@ -287,6 +314,7 @@ function App() {
         if (jobData.status === 'completed') {
           await downloadTranscript(jobId);
           setStatusMessage('Transcription ready!');
+          await fetchHistory();
           return;
         }
         if (jobData.status === 'failed') {
@@ -303,7 +331,26 @@ function App() {
         await sleep(TRANSCRIPTION_POLL_INTERVAL_MS);
       }
     },
-    [apiFetch, downloadTranscript]
+    [apiFetch, downloadTranscript, fetchHistory]
+  );
+
+  const openHistoryEntry = useCallback(
+    async (historyId) => {
+      setStatusMessage('Loading transcript...');
+      try {
+        const response = await apiFetch(`/history/${historyId}`, { method: 'GET' });
+        const data = await response.json();
+        setResultText(data.transcript_text);
+        const safeTitle = (data.title || '').trim();
+        const filenameBase = safeTitle || `transcript-${data.job_id}`;
+        setResultFilename(`${filenameBase}.txt`);
+        setJobStatus(null);
+        setStatusMessage(`Showing transcript${safeTitle ? `: ${safeTitle}` : ''}.`);
+      } catch (error) {
+        setStatusMessage(error.message || 'Unable to load transcript from history.');
+      }
+    },
+    [apiFetch]
   );
 
   const handleTranscribe = async (event) => {
@@ -380,6 +427,9 @@ function App() {
     setResultFilename('');
     setJobStatus(null);
     setStatusMessage('');
+    setHistoryItems([]);
+    setHistoryError('');
+    setHistoryLoading(false);
   };
 
   const handleDragOver = (event) => {
@@ -627,6 +677,50 @@ function App() {
               </div>
             )}
           </aside>
+
+          <section className="history">
+            <div className="history__header">
+              <h3>History</h3>
+              <button
+                type="button"
+                className="history__refresh"
+                onClick={fetchHistory}
+                disabled={isHistoryLoading}
+              >
+                {isHistoryLoading ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+
+            {historyError && <div className="error">{historyError}</div>}
+            {isHistoryLoading && <div className="status status--inline">Loading history…</div>}
+            {!isHistoryLoading && historyItems.length === 0 && !historyError && (
+              <p className="hint">No completed transcriptions yet. Submit a file to see it here.</p>
+            )}
+
+            {historyItems.length > 0 && (
+              <ul className="history__list" aria-label="Transcription history">
+                {historyItems.map((item) => (
+                  <li key={item.id} className="history__item">
+                    <div className="history__item-text">
+                      <div className="history__title">
+                        {item.title || 'Untitled transcription'}
+                      </div>
+                      <div className="history__meta">
+                        {new Date(item.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="history__open"
+                      onClick={() => openHistoryEntry(item.id)}
+                    >
+                      Open
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </main>
       )}
 

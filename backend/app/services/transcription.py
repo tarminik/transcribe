@@ -5,6 +5,7 @@ import json
 import logging
 import ssl
 from datetime import datetime, timezone
+from pathlib import Path
 
 import assemblyai as aai
 import httpx
@@ -14,7 +15,13 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory
-from app.models import Transcript, TranscriptionJob, TranscriptionStatus, User
+from app.models import (
+    Transcript,
+    TranscriptionHistory,
+    TranscriptionJob,
+    TranscriptionStatus,
+    User,
+)
 from app.schemas import TranscriptionJobCreate
 from app.services.storage import StorageService, get_storage_service
 from app.tasks.runner import TranscriptionRunner
@@ -32,6 +39,17 @@ class TranscriptionService:
         self.storage = storage or get_storage_service()
         self._session_factory: async_sessionmaker[AsyncSession] = get_session_factory()
         self.runner.set_startup_hook(self._recover_pending_jobs)
+
+    def _history_title_from_source(self, source_object_key: str) -> str | None:
+        name = Path(source_object_key).name
+        if "_" in name:
+            _, remainder = name.split("_", 1)
+            candidate = remainder or name
+        else:
+            candidate = name
+
+        cleaned = candidate.strip()
+        return cleaned or None
 
     async def create_job(
         self,
@@ -153,6 +171,21 @@ class TranscriptionService:
                 transcript.plain_text = transcript_text
                 transcript.diarized_json = diarized_json
                 transcript.updated_at = datetime.now(timezone.utc)
+
+            history_entry = job.history_entry
+            if history_entry is None:
+                history_entry = TranscriptionHistory(
+                    user_id=job.user_id,
+                    job_id=job.id,
+                    title=self._history_title_from_source(job.source_object_key),
+                )
+                session.add(history_entry)
+            else:
+                if not history_entry.title:
+                    history_entry.title = self._history_title_from_source(
+                        job.source_object_key
+                    )
+                history_entry.updated_at = datetime.now(timezone.utc)
 
             await session.commit()
 
