@@ -6,11 +6,15 @@ services:
       - ./backend/.env
     environment:
       UVICORN_WORKERS: 1
+      PYTHONPATH: /app
     ports:
       - "8000:8000"
     volumes:
       - backend-storage:/app/storage_data
     depends_on: []
+    command: >
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   frontend:
     build:
