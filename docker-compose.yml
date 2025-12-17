@@ -11,6 +11,7 @@ services:
       - "8000:8000"
     volumes:
       - backend-storage:/app/storage_data
+      - backend-db:/app/data
     depends_on: []
     command: >
       sh -c "alembic upgrade head &&
@@ -29,3 +30,4 @@ services:
 
 volumes:
   backend-storage:
+  backend-db:
