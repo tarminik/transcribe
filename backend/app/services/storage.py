@@ -87,6 +87,13 @@ class StorageService:
 
         await asyncio.to_thread(_upload)
 
+    async def delete_object(self, key: str) -> None:
+
+        def _delete() -> None:
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+
+        await asyncio.to_thread(_delete)
+
 
 _storage_service: StorageService | None = None
 

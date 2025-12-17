@@ -77,6 +77,7 @@ class TranscriptionService:
                 logger.error("Runner not available to recover job %s", job_id)
 
     async def _process_job(self, job_id: str) -> None:
+        source_key: str | None = None
         async with self._session_factory() as session:
             job = await session.get(
                 TranscriptionJob,
@@ -91,6 +92,7 @@ class TranscriptionService:
                 logger.info("Job %s already completed", job_id)
                 return
 
+            source_key = job.source_object_key
             job.status = TranscriptionStatus.PROCESSING
             job.error_message = None
             job.updated_at = datetime.now(timezone.utc)
@@ -107,6 +109,8 @@ class TranscriptionService:
                     job.error_message = str(exc)
                     job.updated_at = datetime.now(timezone.utc)
                     await session.commit()
+            if source_key:
+                await self._delete_source_object(source_key, job_id)
             return
 
         # Persist results
@@ -151,6 +155,9 @@ class TranscriptionService:
                 transcript.updated_at = datetime.now(timezone.utc)
 
             await session.commit()
+
+        if source_key:
+            await self._delete_source_object(source_key, job_id)
 
     async def _run_transcription(self, job_id: str) -> tuple[str, str | None]:
         async with self._session_factory() as session:
@@ -253,3 +260,11 @@ class TranscriptionService:
                 )
 
         return text, diarized_json
+
+    async def _delete_source_object(self, source_key: str, job_id: str) -> None:
+        try:
+            await self.storage.delete_object(source_key)
+        except Exception:  # pragma: no cover - logged for observability
+            logger.exception(
+                "Failed to delete source object %s for job %s", source_key, job_id
+            )
