@@ -14,7 +14,6 @@ from app.api.routers import jobs as jobs_router
 async def lifespan(app: FastAPI):
     runner = TranscriptionRunner()
     transcription_service = TranscriptionService(runner)
-    app.state.transcription_runner = runner
     app.state.transcription_service = transcription_service
 
     await runner.start()

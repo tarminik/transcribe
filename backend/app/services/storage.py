@@ -1,7 +1,6 @@
 import asyncio
 import re
 from pathlib import Path
-from typing import Final
 from uuid import uuid4
 
 import boto3
@@ -18,8 +17,6 @@ def _sanitize_filename(filename: str) -> str:
 
 class StorageService:
     """S3-compatible storage backend."""
-
-    scheme: Final[str] = "s3"
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -64,15 +61,6 @@ class StorageService:
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expires_in,
         )
-
-    async def download_to_path(self, key: str, destination: Path) -> None:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-
-        def _download() -> None:
-            with destination.open("wb") as f:
-                self.client.download_fileobj(self.bucket, key, f)
-
-        await asyncio.to_thread(_download)
 
     async def upload_text(self, key: str, content: str) -> None:
         data = content.encode("utf-8")

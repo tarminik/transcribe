@@ -38,9 +38,6 @@ class DummyStorage(storage_service.StorageService):
     def create_presigned_get(self, key: str, expires_in: int = 900) -> str:  # type: ignore[override]
         return f"https://example.com/get/{key}"
 
-    async def download_to_path(self, key, destination):  # type: ignore[override]
-        raise NotImplementedError
-
     async def upload_text(self, key, content):  # type: ignore[override]
         raise NotImplementedError
 
@@ -69,11 +66,10 @@ def app_instance(configure_environment):
     # Setup state for tests, mimicking lifespan events
     runner = TranscriptionRunner()
     transcription_service = TranscriptionService(runner)
-    app.state.transcription_runner = runner
     app.state.transcription_service = transcription_service
 
-    app.state.transcription_runner.submit = lambda coro_factory: None  # type: ignore[attr-defined]
-    app.state.transcription_service.storage = storage_service._storage_service  # type: ignore[attr-defined]
+    transcription_service.runner.submit = lambda coro_factory: None  # type: ignore[attr-defined]
+    transcription_service.storage = storage_service._storage_service  # type: ignore[attr-defined]
     return app
 
 
