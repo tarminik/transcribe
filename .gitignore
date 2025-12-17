@@ -18,3 +18,9 @@ frontend/npm-debug.log*
 # Editor
 .idea/
 .vscode/
+
+# Local overrides
+docker-compose.override.yml
+
+# Local databases
+backend/dev.db
