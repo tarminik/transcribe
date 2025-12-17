@@ -52,6 +52,12 @@ class TranscriptionJob(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    history_entry: Mapped["TranscriptionHistory"] = relationship(
+        "TranscriptionHistory",
+        back_populates="job",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 Index(

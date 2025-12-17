@@ -6,6 +6,7 @@ from app.services.transcription import TranscriptionService
 from app.tasks.runner import TranscriptionRunner
 from app.api.routers import auth as auth_router
 from app.api.routers import files as files_router
+from app.api.routers import history as history_router
 from app.api.routers import jobs as jobs_router
 
 
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router.router)
     app.include_router(files_router.router)
+    app.include_router(history_router.router)
     app.include_router(jobs_router.router)
 
     return app
