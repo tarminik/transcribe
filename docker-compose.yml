@@ -8,9 +8,6 @@ services:
       UVICORN_WORKERS: 1
     ports:
       - "8000:8000"
-    volumes:
-      - backend-storage:/app/storage_data
-    depends_on: []
 
   frontend:
     build:
@@ -22,6 +19,3 @@ services:
       - "5173:80"
     depends_on:
       - backend
-
-volumes:
-  backend-storage:

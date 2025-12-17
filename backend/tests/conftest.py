@@ -53,8 +53,6 @@ def configure_environment():
     os.environ["S3_ACCESS_KEY"] = "test"
     os.environ["S3_SECRET_KEY"] = "test"
     os.environ["S3_BUCKET_UPLOADS"] = "test-bucket"
-    os.environ["STORAGE_BACKEND"] = "local"
-    os.environ["TRANSCRIPTION_BACKEND"] = "stub"
     get_settings.cache_clear()
     db_session.reset_session_factory()
     storage_service.reset_storage_service()

@@ -1,5 +1,3 @@
-from urllib.parse import unquote
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,7 +56,4 @@ async def download_job_result(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Job not completed yet")
     storage = get_storage_service()
     download_url = storage.create_presigned_get(job.result_object_key)
-    if download_url.startswith("local://download/"):
-        local_key = unquote(download_url.removeprefix("local://download/"))
-        download_url = f"/files/download/{local_key}"
     return DownloadResponse(download_url=download_url, object_key=job.result_object_key)

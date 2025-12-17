@@ -4,9 +4,7 @@ import asyncio
 import json
 import logging
 import ssl
-import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
 
 import assemblyai as aai
 import httpx
@@ -18,11 +16,7 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import Transcript, TranscriptionJob, TranscriptionStatus, User
 from app.schemas import TranscriptionJobCreate
-from app.services.storage import (
-    LocalStorageService,
-    StorageService,
-    get_storage_service,
-)
+from app.services.storage import StorageService, get_storage_service
 from app.tasks.runner import TranscriptionRunner
 
 logger = logging.getLogger(__name__)
@@ -33,8 +27,7 @@ class TranscriptionService:
         self, runner: TranscriptionRunner, storage: StorageService | None = None
     ) -> None:
         self.settings = get_settings()
-        if self.settings.transcription_backend == "assemblyai":
-            aai.settings.api_key = self.settings.assemblyai_api_key
+        aai.settings.api_key = self.settings.assemblyai_api_key
         self.runner = runner
         self.storage = storage or get_storage_service()
         self._session_factory: async_sessionmaker[AsyncSession] = get_session_factory()
@@ -179,12 +172,6 @@ class TranscriptionService:
                 speaker_labels = True
                 speakers_expected = None
 
-        if self.settings.transcription_backend == "stub":
-            with tempfile.TemporaryDirectory() as tmpdir:
-                local_path = Path(tmpdir) / "source"
-                await self.storage.download_to_path(source_key, local_path)
-                return await self._run_stub_transcription(local_path)
-
         if language == "auto":
             config = aai.TranscriptionConfig(
                 language_detection=True,
@@ -200,15 +187,6 @@ class TranscriptionService:
 
         async def _transcribe_once() -> aai.Transcript:
             transcriber = aai.Transcriber()
-            if isinstance(self.storage, LocalStorageService):
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    local_path = Path(tmpdir) / "source"
-                    await self.storage.download_to_path(source_key, local_path)
-                    return await asyncio.to_thread(
-                        transcriber.transcribe,
-                        str(local_path),
-                        config,
-                    )
             audio_url = self.storage.create_presigned_get(
                 source_key,
                 expires_in=self.settings.assemblyai_presigned_ttl,
@@ -275,16 +253,3 @@ class TranscriptionService:
                 )
 
         return text, diarized_json
-
-    async def _run_stub_transcription(self, local_path: Path) -> tuple[str, str | None]:
-        def _read_text() -> str:
-            try:
-                return local_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                return (
-                    "[stub-transcription] Uploaded file is not UTF-8 text. "
-                    "Provide a .txt file or enable the AssemblyAI backend."
-                )
-
-        text = await asyncio.to_thread(_read_text)
-        return text, None

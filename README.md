@@ -13,11 +13,11 @@ Always keep this section in sync when you switch plans or move to the next step 
 
 1. `cd backend` and create a virtualenv (`python -m venv .venv` then `source .venv/bin/activate`).
 2. Install deps: `pip install -r requirements.txt`.
-3. Copy `.env.example` to `.env` and adjust secrets as needed. Defaults use SQLite, local filesystem storage, and the stub transcriber.
+3. Copy `.env.example` to `.env` and adjust secrets as needed. Defaults use SQLite for data, cloud S3-compatible storage, and AssemblyAI for transcription.
 4. Run migrations: `alembic upgrade head` (creates `dev.db`).
 5. Start the API: `uvicorn app.main:app --reload`.
 
-`/files/presign` returns local upload/download URLs when `STORAGE_BACKEND=local`; authenticate and `PUT` the upload URL with `multipart/form-data` to store files. Jobs created while `TRANSCRIPTION_BACKEND=stub` will complete immediately using the uploaded `.txt` contents.
+`/files/presign` returns S3 presigned URLs; authenticate and upload directly to the storage endpoint before creating a job. AssemblyAI is always used for transcription, so set a valid API key even for local runs.
 
 ## Frontend Quick Start
 
@@ -31,7 +31,7 @@ The UI offers a minimal flow: sign up or sign in with email/password, upload a f
 
 - Backend: `backend/Dockerfile` builds a slim Python 3.12 image that installs `requirements.txt` and runs `uvicorn app.main:app` on port 8000. A `.dockerignore` is provided to keep build contexts small.
 - Frontend: `frontend/Dockerfile` builds the Vite app and serves it from `nginx:alpine` (port 80). Configure `VITE_API_BASE` and `VITE_BACKEND_ORIGIN` via build args if you need to point at a different API.
-- Compose: `docker-compose.yml` launches both services locally (`backend` on 8000, `frontend` on 5173) and persists stub transcripts under the `backend-storage` volume.
+- Compose: `docker-compose.yml` launches backend (8000) and frontend (5173) locally. Configure valid S3 credentials and ensure the target bucket already exists.
 
 ## Deployment Notes
 
