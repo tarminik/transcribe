@@ -10,7 +10,7 @@
   --card-padding: 32px;
   --heading-font-size: 1.75rem;
   --footer-font-size: 0.8rem;
-  --result-max-height: 320px;
+  --result-max-height: 400px;
   --primary-color: #667eea;
   --primary-dark: #5568d3;
   --success-color: #10b981;
@@ -821,13 +821,13 @@ select:focus {
 
 @media (min-width: 1200px) {
   :root {
-    --card-max-width: 960px;
+    --card-max-width: 1200px;
     --result-max-height: 420px;
   }
 
   .card--workspace.card--workspace--with-aside {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
     grid-template-areas:
       'title title'
       'form aside';
@@ -852,5 +852,11 @@ select:focus {
 
   .card--workspace.card--workspace--with-aside .result__preview {
     max-height: calc(var(--result-max-height) + 80px);
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --card-max-width: 1400px;
   }
 }
