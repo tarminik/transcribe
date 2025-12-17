@@ -95,6 +95,11 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
+  const [history, setHistory] = useState([]);
+  const [isLoadingHistory, setLoadingHistory] = useState(false);
+  const [selectedHistoryJob, setSelectedHistoryJob] = useState(null);
+  const [historyPreviewText, setHistoryPreviewText] = useState('');
+
   const hasAsideContent = Boolean(statusMessage || jobStatus || resultText);
 
   const isAuthenticated = useMemo(() => Boolean(token), [token]);
@@ -244,7 +249,7 @@ function App() {
     [token]
   );
 
-  const downloadTranscript = useCallback(
+  const fetchTranscriptText = useCallback(
     async (jobId) => {
       const response = await apiFetch(`/jobs/${jobId}/download`, {
         method: 'GET',
@@ -265,13 +270,44 @@ function App() {
       if (!fileResponse.ok) {
         throw new Error('Failed to fetch transcript');
       }
-      const text = await fileResponse.text();
+      return fileResponse.text();
+    },
+    [apiFetch, token]
+  );
+
+  const downloadTranscript = useCallback(
+    async (jobId) => {
+      const text = await fetchTranscriptText(jobId);
       setResultText(text);
       setResultFilename(`transcript-${jobId}.txt`);
       return text;
     },
-    [apiFetch, token]
+    [fetchTranscriptText]
   );
+
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await apiFetch('/jobs/', { method: 'GET' });
+      const jobs = await response.json();
+      setHistory(jobs);
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [apiFetch]);
+
+  // Load history when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchHistory();
+    } else {
+      setHistory([]);
+      setSelectedHistoryJob(null);
+      setHistoryPreviewText('');
+    }
+  }, [isAuthenticated, fetchHistory]);
 
   const monitorJob = useCallback(
     async (jobId) => {
@@ -287,10 +323,12 @@ function App() {
         if (jobData.status === 'completed') {
           await downloadTranscript(jobId);
           setStatusMessage('Transcription ready!');
+          fetchHistory(); // Refresh history after completion
           return;
         }
         if (jobData.status === 'failed') {
           setStatusMessage(jobData.error_message || 'Transcription failed.');
+          fetchHistory(); // Refresh history after failure
           return;
         }
         if (!hasWarnedAboutDelay && Date.now() - start > TRANSCRIPTION_MAX_WAIT_MS) {
@@ -303,8 +341,43 @@ function App() {
         await sleep(TRANSCRIPTION_POLL_INTERVAL_MS);
       }
     },
-    [apiFetch, downloadTranscript]
+    [apiFetch, downloadTranscript, fetchHistory]
   );
+
+  const handleHistoryJobClick = useCallback(
+    async (job) => {
+      if (selectedHistoryJob?.id === job.id) {
+        setSelectedHistoryJob(null);
+        setHistoryPreviewText('');
+        return;
+      }
+      setSelectedHistoryJob(job);
+      setHistoryPreviewText('');
+      if (job.status === 'completed' && job.result_object_key) {
+        try {
+          const text = await fetchTranscriptText(job.id);
+          setHistoryPreviewText(text);
+        } catch (error) {
+          console.error('Failed to load transcript:', error);
+          setHistoryPreviewText('Failed to load transcript.');
+        }
+      }
+    },
+    [selectedHistoryJob, fetchTranscriptText]
+  );
+
+  const handleHistoryDownload = useCallback(() => {
+    if (!historyPreviewText || !selectedHistoryJob) return;
+    const blob = new Blob([historyPreviewText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `transcript-${selectedHistoryJob.id}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [historyPreviewText, selectedHistoryJob]);
 
   const handleTranscribe = async (event) => {
     event.preventDefault();
@@ -380,6 +453,9 @@ function App() {
     setResultFilename('');
     setJobStatus(null);
     setStatusMessage('');
+    setHistory([]);
+    setSelectedHistoryJob(null);
+    setHistoryPreviewText('');
   };
 
   const handleDragOver = (event) => {
@@ -628,6 +704,91 @@ function App() {
             )}
           </aside>
         </main>
+      )}
+
+      {isAuthenticated && (
+        <section className="card card--history">
+          <div className="history-header">
+            <h2>History</h2>
+            <button
+              type="button"
+              className="history-refresh"
+              onClick={fetchHistory}
+              disabled={isLoadingHistory}
+              title="Refresh history"
+            >
+              {isLoadingHistory ? '...' : '↻'}
+            </button>
+          </div>
+
+          {isLoadingHistory && history.length === 0 ? (
+            <p className="hint">Loading history...</p>
+          ) : history.length === 0 ? (
+            <p className="hint">No transcriptions yet. Upload a file to get started.</p>
+          ) : (
+            <ul className="history-list">
+              {history.map((job) => (
+                <li
+                  key={job.id}
+                  className={`history-item${selectedHistoryJob?.id === job.id ? ' history-item--selected' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="history-item__btn"
+                    onClick={() => handleHistoryJobClick(job)}
+                  >
+                    <span className="history-item__status">
+                      {job.status === 'pending' && '⏱️'}
+                      {job.status === 'processing' && '⚙️'}
+                      {job.status === 'completed' && '✅'}
+                      {job.status === 'failed' && '❌'}
+                    </span>
+                    <span className="history-item__info">
+                      <span className="history-item__date">
+                        {new Date(job.created_at).toLocaleString()}
+                      </span>
+                      <span className="history-item__meta">
+                        {job.language} · {job.mode}
+                      </span>
+                    </span>
+                    <span className={`history-item__badge history-item__badge--${job.status}`}>
+                      {job.status}
+                    </span>
+                  </button>
+
+                  {selectedHistoryJob?.id === job.id && (
+                    <div className="history-item__details">
+                      {job.status === 'completed' ? (
+                        <>
+                          {historyPreviewText ? (
+                            <>
+                              <pre className="history-item__preview">{historyPreviewText}</pre>
+                              <button
+                                type="button"
+                                className="history-item__download"
+                                onClick={handleHistoryDownload}
+                              >
+                                Download TXT
+                              </button>
+                            </>
+                          ) : (
+                            <p className="hint">Loading transcript...</p>
+                          )}
+                        </>
+                      ) : job.status === 'failed' ? (
+                        <p className="history-item__error">
+                          {job.error_message || 'Transcription failed'}
+                        </p>
+                      ) : (
+                        <p className="hint">Transcription in progress...</p>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       <footer className="page__footer">
