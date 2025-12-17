@@ -88,6 +88,14 @@ class StorageService:
 
         await asyncio.to_thread(_upload)
 
+    async def delete_object(self, key: str) -> None:
+        """Delete an object from the bucket; errors propagate to caller."""
+
+        def _delete() -> None:
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+
+        await asyncio.to_thread(_delete)
+
 
 class LocalStorageService(StorageService):
     """Local filesystem storage intended for development use."""
@@ -152,6 +160,15 @@ class LocalStorageService(StorageService):
         if not path.exists():
             raise FileNotFoundError(key)
         return path
+
+    async def delete_object(self, key: str) -> None:  # type: ignore[override]
+        target = self._key_path(key)
+
+        def _remove() -> None:
+            if target.exists():
+                target.unlink()
+
+        await asyncio.to_thread(_remove)
 
 
 _storage_service: StorageService | LocalStorageService | None = None

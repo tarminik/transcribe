@@ -44,6 +44,9 @@ class DummyStorage(storage_service.StorageService):
     async def upload_text(self, key, content):  # type: ignore[override]
         raise NotImplementedError
 
+    async def delete_object(self, key):  # type: ignore[override]
+        return None
+
 
 @pytest.fixture(scope="session", autouse=True)
 def configure_environment():

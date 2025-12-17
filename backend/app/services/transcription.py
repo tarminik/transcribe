@@ -94,6 +94,7 @@ class TranscriptionService:
                 logger.warning("Job %s not found", job_id)
                 return
 
+            source_key = job.source_object_key
             if job.status == TranscriptionStatus.COMPLETED:
                 logger.info("Job %s already completed", job_id)
                 return
@@ -114,6 +115,7 @@ class TranscriptionService:
                     job.error_message = str(exc)
                     job.updated_at = datetime.now(timezone.utc)
                     await session.commit()
+            await self._cleanup_source_object(source_key)
             return
 
         # Persist results
@@ -158,6 +160,7 @@ class TranscriptionService:
                 transcript.updated_at = datetime.now(timezone.utc)
 
             await session.commit()
+        await self._cleanup_source_object(source_key)
 
     async def _run_transcription(self, job_id: str) -> tuple[str, str | None]:
         async with self._session_factory() as session:
@@ -288,3 +291,16 @@ class TranscriptionService:
 
         text = await asyncio.to_thread(_read_text)
         return text, None
+
+    async def _cleanup_source_object(self, key: str | None) -> None:
+        """Best-effort deletion of the original media after processing."""
+        if not key:
+            return
+        try:
+            await self.storage.delete_object(key)
+        except FileNotFoundError:
+            logger.debug("Source object %s already deleted", key)
+        except Exception:
+            logger.warning(
+                "Failed to delete source object %s after processing", key, exc_info=True
+            )
