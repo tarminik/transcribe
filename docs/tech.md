@@ -7,8 +7,8 @@ For deeper backend details, see `backend/DOCS.md`.
 - **Backend**: Python 3.12+, FastAPI, SQLAlchemy, Pydantic, Alembic.
 - **Frontend**: React + Vite, minimal UI for auth, upload, and job tracking.
 - **Database**: PostgreSQL in production; SQLite is used for local/dev by default.
-- **Storage**: S3‑compatible object storage (Yandex Object Storage / MinIO) or local filesystem mode.
-- **ASR Provider**: AssemblyAI via official Python SDK (with a stub backend for local‑only mode).
+- **Storage**: S3‑compatible object storage (Yandex Object Storage or another cloud S3 provider).
+- **ASR Provider**: AssemblyAI via official Python SDK.
 - **Hosting**: Dockerized services; target deployment on Yandex Cloud (containers + managed PostgreSQL + Object Storage).
 
 ## High‑Level Architecture
@@ -38,14 +38,22 @@ Concrete columns and migrations live under `backend/alembic/versions/`; do not m
   - `DATABASE_URL`,
   - `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`,
   - `ASSEMBLYAI_API_KEY`,
-  - `STORAGE_BACKEND` (`s3` or `local`) and related S3/local settings,
-  - `TRANSCRIPTION_BACKEND` (`assemblyai` or `stub`),
+  - S3-related settings (`S3_ENDPOINT_URL`, credentials, bucket name, region),
   - resource limits like `MAX_PARALLEL_TRANSCRIPTIONS`.
 - **Local/dev**:
-  - `docker-compose.yml` can bring up Postgres + MinIO.
-  - For fully local mode, use `STORAGE_BACKEND=local` and `TRANSCRIPTION_BACKEND=stub`.
+  - `docker-compose.yml` brings up backend + frontend; provide real cloud S3 credentials because there is no local MinIO.
+  - Database defaults to SQLite unless you point `DATABASE_URL` at your managed Postgres instance.
+  - AssemblyAI is always required; use mocked fixtures in tests only.
 - **Prod (Yandex Cloud)**:
-  - FastAPI + Postgres + Object Storage, with secrets injected via environment or secrets manager.
+  - FastAPI + Managed PostgreSQL + Object Storage (same S3 bucket pattern as local runs), with secrets injected via environment or secrets manager.
+  - CI/CD should build and push images to a registry before deployment; Coolify or a similar orchestrator can consume `docker-compose.yml`.
+
+### Quick comparison: prod vs. local
+- **Database**: PostgreSQL in prod; SQLite by default in local, with the option to reuse PostgreSQL if configured.
+- **Storage**: Single cloud S3 bucket in all environments (no MinIO or local filesystem fallback).
+- **Transcription**: AssemblyAI everywhere; tests mock it to avoid external calls.
+- **Orchestration**: Prod runs on Yandex Cloud (containers/VM + ingress/SSL); local uses `docker-compose` to run backend and frontend only.
+- **Secrets**: Prod expects secrets from the platform (Lockbox/Secrets Manager or env vars); local relies on a checked-in `.env` file you copy from `.env.example`.
 
 ## Testing & Tooling
 - Backend tests live in `backend/tests/` and use `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.

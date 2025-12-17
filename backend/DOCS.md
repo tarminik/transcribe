@@ -9,7 +9,7 @@
 - **FastAPI application** (Uvicorn) provides REST endpoints for auth, file management, and transcription job control.
 - **PostgreSQL** stores users, transcription jobs, transcripts, and auth tokens (if needed).
 - **AssemblyAI SDK** handles ASR; configuration toggles diarization based on mono/dialogue mode.
-- **Object Storage** (Yandex Object Storage in prod, MinIO locally) keeps uploaded media and generated TXT outputs. Clients upload/download via presigned URLs.
+- **Object Storage** (single S3-compatible bucket such as Yandex Object Storage) keeps uploaded media and generated TXT outputs. Clients upload/download via presigned URLs.
 - **Async background tasks** (within FastAPI event loop) execute transcription logic without external queue.
 - **Startup recovery** scans for unfinished jobs and restarts them to mitigate single-process task handling risks.
 
@@ -56,17 +56,11 @@
 - Handle graceful shutdown by waiting for tasks to finish (if possible).
 
 ## Local Development
-- `docker-compose.yml` runs Postgres + MinIO (S3-compatible). Optionally add mailhog later.
+- `docker-compose.yml` runs the API and frontend; point it at an existing S3-compatible bucket. Optionally add mailhog later.
 - FastAPI runs locally with `uvicorn app.main:app --reload`.
-- AssemblyAI real API key required; consider mock fixtures for tests to avoid hitting API.
+- AssemblyAI real API key required in all environments; use mocked fixtures in tests to avoid network calls.
 - Alembic migrations manage schema; `alembic upgrade head` after changes.
 - Tests via `pytest` + `httpx.AsyncClient` with dependency overrides and mocked AssemblyAI/storage.
-
-### Local-Only Mode (without S3/AssemblyAI)
-- Set `STORAGE_BACKEND=local` and `TRANSCRIPTION_BACKEND=stub` in `.env` (see `.env.example`).
-- Uploaded files are stored under `LOCAL_STORAGE_DIR` on disk; presign calls return FastAPI routes for uploads/downloads.
-- Use `PUT` on the provided `/files/upload/{object_key}` URL with an authenticated request to upload binaries directly.
-- The stub transcriber treats uploaded UTF-8 `.txt` files as transcripts; other formats return an explanatory placeholder string.
 
 ## Deployment Targets (Yandex Cloud)
 - FastAPI container on Yandex Cloud (Serverless Containers or Compute VM).
@@ -80,7 +74,7 @@
 2. Implement configuration, logging, database session factory, Alembic setup.
 3. Create models and initial migration (`users`, `transcription_jobs`, `transcripts`).
 4. Build auth service & router (registration/login/me) with JWT + password hashing.
-5. Implement storage service for presigned uploads/downloads (MinIO/Yandex compatible). Add `/files/presign`.
+5. Implement storage service for presigned uploads/downloads (S3-compatible). Add `/files/presign`.
 6. Add transcription service, job creation router, async task + AssemblyAI integration, startup recovery.
 7. Provide TXT download endpoint using presigned URLs.
 8. Write core tests covering auth flow and mocked transcription pipeline.
