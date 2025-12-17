@@ -24,3 +24,8 @@ docker-compose.override.yml
 
 # Local databases
 backend/dev.db
+backend/data/
+
+# Environment files with secrets
+.env.prod
+backend/.env
